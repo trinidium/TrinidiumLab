@@ -1,5 +1,4 @@
 "use client"
-const year = new Date().getFullYear()
 import { Users, Mail, Brain, Settings, Home, Zap } from "lucide-react"
 import {
   Sidebar,
@@ -34,7 +33,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">TrinidiumLab</h1>
-            <p className="text-sm text-slate-400 font-medium">Product by Trinidium</p>
+            <p className="text-sm text-slate-400 font-medium">Email Automation</p>
           </div>
         </div>
       </SidebarHeader>
@@ -65,7 +64,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-slate-700/50 p-4">
-        <p className="text-xs text-slate-500">© {year} TrinidiumLab. Not for Redistribution</p>
+        <p className="text-xs text-slate-500">Prototype – © TrinidiumLab 2025 – Not for Redistribution</p>
       </SidebarFooter>
     </Sidebar>
   )

@@ -31,6 +31,7 @@ import {
   Wand2,
   RotateCcw,
   Shield,
+  Loader2,
 } from "lucide-react"
 
 export function DashboardContent() {
@@ -78,6 +79,9 @@ export function DashboardContent() {
     client_secret?: string
     project_id?: string
   } | null>(null)
+
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false)
+
   const gmailJsonInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // refs to avoid stale closures in timers
@@ -219,19 +223,26 @@ export function DashboardContent() {
 
     try {
       const text = await file.text()
-      const credentials = JSON.parse(text)
+      const credentialsData = JSON.parse(text)
 
-      // Validate required fields
-      if (!credentials.client_id || !credentials.client_secret) {
+      if (!credentialsData.installed && !credentialsData.web) {
         toast({
           title: "Invalid credentials file",
-          description: "JSON file must contain client_id and client_secret fields.",
+          description:
+            "JSON file must contain 'installed' or 'web' credentials. Please upload a valid credentials.json file.",
           variant: "destructive",
         })
         return
       }
 
-      setGmailCredentials(credentials)
+      // Extract credentials from either installed or web app format
+      const creds = credentialsData.installed || credentialsData.web
+      setGmailCredentials({
+        client_id: creds.client_id,
+        client_secret: creds.client_secret,
+        project_id: creds.project_id,
+      })
+
       toast({
         title: "Gmail credentials loaded",
         description: "Successfully loaded Gmail API credentials from JSON file.",
@@ -551,6 +562,59 @@ Your Name`
     setAiTab("prompt")
   }
 
+  const authenticateGmail = async () => {
+    if (!gmailCredentials) {
+      toast({
+        title: "No credentials found",
+        description: "Please upload Gmail API credentials first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsAuthenticating(true)
+    try {
+      const response = await fetch("/api/gmail/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credentials: gmailCredentials }),
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.authUrl) {
+        // Open OAuth2 URL in new window
+        window.open(data.authUrl, "gmail-auth", "width=500,height=600")
+
+        // Listen for the callback
+        const handleMessage = (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return
+
+          if (event.data.type === "GMAIL_AUTH_SUCCESS" && event.data.token) {
+            // setGmailToken(event.data.token) // No longer setting token directly
+            toast({
+              title: "Gmail authenticated",
+              description: "Successfully connected to Gmail API.",
+            })
+            window.removeEventListener("message", handleMessage)
+          }
+        }
+
+        window.addEventListener("message", handleMessage)
+      } else {
+        throw new Error(data.error || "Failed to generate auth URL")
+      }
+    } catch (error) {
+      toast({
+        title: "Authentication failed",
+        description: "Failed to authenticate with Gmail API.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAuthenticating(false)
+    }
+  }
+
   const removeGmailCredentials = async () => {
     try {
       // TODO: Call API to remove credentials from database
@@ -564,7 +628,7 @@ Your Name`
     } catch (error) {
       toast({
         title: "Failed to remove credentials",
-        description: "Please try again.",
+        description: "An error occurred while removing credentials.",
         variant: "destructive",
       })
     }
@@ -1167,7 +1231,7 @@ Your Name`}
                 <Mail className="h-5 w-5 text-red-400" />
                 Gmail API Integration
               </CardTitle>
-              <CardDescription className="text-slate-400">Upload Gmail API credentials JSON file</CardDescription>
+              <CardDescription className="text-slate-400">Upload Gmail API credentials.json file</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg border border-slate-600">
@@ -1182,7 +1246,7 @@ Your Name`}
                   <div>
                     <p className="text-white font-medium">Gmail API Status</p>
                     <p className="text-sm text-slate-400">
-                      {gmailCredentials ? "✓ Credentials configured" : "⚠ Not configured"}
+                      {gmailCredentials ? "✓ Credentials loaded" : "⚠ No credentials uploaded"}
                     </p>
                   </div>
                 </div>
@@ -1202,7 +1266,7 @@ Your Name`}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-slate-300">Gmail API Credentials</Label>
-                  <p className="text-sm text-slate-500">Upload the JSON file downloaded from Google Cloud Console</p>
+                  <p className="text-sm text-slate-500">Upload the credentials.json file from Google Cloud Console</p>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -1212,13 +1276,13 @@ Your Name`}
                     className="border-slate-600 text-slate-300 bg-slate-700/50 hover:bg-slate-600/50"
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {gmailCredentials ? "Replace JSON File" : "Upload JSON File"}
+                    {gmailCredentials ? "Replace Credentials File" : "Upload Credentials File"}
                   </Button>
 
                   {gmailCredentials && (
                     <div className="flex items-center gap-2 text-sm text-green-400">
                       <CheckCircle className="h-4 w-4" />
-                      <span>Credentials active</span>
+                      <span>Credentials Loaded</span>
                     </div>
                   )}
                 </div>
@@ -1227,7 +1291,7 @@ Your Name`}
                   <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-sm font-medium text-slate-300">Loaded Credentials Preview</p>
-                      <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse"></div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 text-xs">
                       <div className="flex justify-between items-center p-2 bg-slate-800/50 rounded">
@@ -1245,11 +1309,31 @@ Your Name`}
                       <div className="flex justify-between items-center p-2 bg-slate-800/50 rounded">
                         <span className="text-slate-400">Client Secret:</span>
                         <span className="text-slate-300 font-mono">
-                          {gmailCredentials.client_secret ? "••••••••••••••••" : "Not found"}
+                          {gmailCredentials.client_secret ? "••••••••••••" : "Not available"}
                         </span>
                       </div>
                     </div>
                   </div>
+                )}
+
+                {gmailCredentials && (
+                  <Button
+                    onClick={authenticateGmail}
+                    disabled={isAuthenticating}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isAuthenticating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Authenticating...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Authenticate with Gmail
+                      </>
+                    )}
+                  </Button>
                 )}
 
                 <input

@@ -9,19 +9,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Gmail credentials are required" }, { status: 400 })
     }
 
-    // TODO: Implement OAuth2 flow with Gmail API
-    // This endpoint should handle the OAuth2 authentication process
-    console.log("Authenticating with Gmail API:", credentials.client_id)
+    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/gmail/callback`
+    const scopes = [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ].join(" ")
 
-    // Mock authentication for demo
-    const authUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${credentials.client_id}&redirect_uri=http://localhost:3000/api/gmail/callback&scope=https://www.googleapis.com/auth/gmail.send&response_type=code`
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth?` +
+      new URLSearchParams({
+        client_id: credentials.client_id,
+        redirect_uri: redirectUri,
+        scope: scopes,
+        response_type: "code",
+        access_type: "offline",
+        prompt: "consent",
+      }).toString()
 
     return NextResponse.json({
       success: true,
       authUrl,
-      message: "Authentication URL generated",
+      message: "Authentication URL generated successfully",
     })
   } catch (error) {
+    console.error("Gmail auth error:", error)
     return NextResponse.json({ success: false, error: "Failed to generate auth URL" }, { status: 500 })
   }
 }

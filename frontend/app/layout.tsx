@@ -17,9 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "TrinidiumLab",
-  description: "Created by Trinidium",
-  generator: "Trinidium",
+  title: "v0 App",
+  description: "Created with v0",
+  generator: "v0.app",
 }
 
 export default function RootLayout({
